@@ -72,7 +72,13 @@ export async function repositories(env: Env, request: Fetch = fetch) {
     const fullName = repo.full_name.toLowerCase();
     if (!publicRepos.has(fullName)) continue;
     try {
-      const root = await apiJson<File[]>(`https://api.github.com/repos/${fullName}/contents/`, headers, request);
+      let root: File[];
+      try { root = await apiJson<File[]>(`https://api.github.com/repos/${fullName}/contents/`, headers, request); }
+      catch (error) {
+        // GitHub returns 404 for empty public repositories; they have no deployment files to scan.
+        if (error instanceof ApiError && error.status === 404) continue;
+        throw error;
+      }
       for (const file of root) {
         if (file.type !== 'file' || !configFiles.has(file.name)) continue;
         const data = await apiJson<Content>(`https://api.github.com/repos/${fullName}/contents/${encodeURIComponent(file.name)}`, headers, request);
@@ -81,7 +87,7 @@ export async function repositories(env: Env, request: Fetch = fetch) {
         for (const host of configHosts(file.name, new TextDecoder().decode(bytes))) add(host, fullName, file.name === 'CNAME' ? 'CNAME' : 'config');
       }
     } catch (error) {
-      errors.push('github:contents');
+      errors.push(error instanceof ApiError ? `github:contents-${error.status}` : 'github:invalid-config');
       if ((error instanceof ApiError && [403, 429].includes(error.status)) || (error instanceof Error && error.message === 'github-budget')) break;
     }
   }

@@ -121,6 +121,21 @@ describe('discovery and matching', () => {
     expect(found.sites.get('example.lakekim.com')!.sources.size).toBe(4);
     expect(found.sites.get('pages.lakekim.com')!.deployments.has('lake/public')).toBe(true);
   });
+  it('uses the Pages page size limit and follows pagination without total_pages', async () => {
+    const pages: Fetch = async input => {
+      const url = new URL(String(input));
+      expect(url.searchParams.get('per_page')).toBe('10');
+      const page = Number(url.searchParams.get('page'));
+      return json({ success: true, result: Array.from({ length: page === 1 ? 10 : 1 }, (_, n) => ({ name: `project-${page}-${n}` })), result_info: { page } });
+    };
+    expect(await cfList('/accounts/test/pages/projects', testEnv, pages)).toHaveLength(11);
+  });
+  it('accepts an empty public repository without treating its missing root as an outage', async () => {
+    const empty: Fetch = (input, init) => String(input).endsWith('/contents/') ? Promise.resolve(json({}, 404)) : request(input, init);
+    const result = await repositories(testEnv, empty);
+    expect(result.complete).toBe(true);
+    expect(result.matches.get('example.lakekim.com')?.[0].kind).toBe('homepage');
+  });
   it('recognizes managed Worker placeholder DNS only with a confirmed Custom Domain', async () => {
     const managed: Fetch = async input => {
       const path = new URL(String(input)).pathname;

@@ -5,14 +5,15 @@ import type { Candidate, Env, Fetch } from './types';
 interface CFList<T> { success: boolean; result: T[]; result_info?: { total_pages?: number; page?: number } }
 export async function cfList<T>(path: string, env: Env, request: Fetch = fetch): Promise<T[]> {
   const values: T[] = [];
+  const perPage = path.includes('/pages/projects') ? 10 : 100;
   for (let page = 1; page <= 100; page++) {
     const separator = path.includes('?') ? '&' : '?';
-    const data = await apiJson<CFList<T>>(`https://api.cloudflare.com/client/v4${path}${separator}page=${page}&per_page=100`,
+    const data = await apiJson<CFList<T>>(`https://api.cloudflare.com/client/v4${path}${separator}page=${page}&per_page=${perPage}`,
       { Authorization: `Bearer ${env.CF_API_TOKEN}` }, request);
     if (!data.success || !Array.isArray(data.result)) throw new Error('cloudflare-invalid-response');
     values.push(...data.result);
     if (values.length > 10000) throw new Error('cloudflare-record-limit');
-    if (data.result_info?.total_pages !== undefined ? page >= data.result_info.total_pages : !data.result_info || data.result.length < 100) return values;
+    if (data.result_info?.total_pages !== undefined ? page >= data.result_info.total_pages : path.endsWith('/workers/routes') || data.result.length < perPage) return values;
   }
   throw new Error('cloudflare-page-limit');
 }
