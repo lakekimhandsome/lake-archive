@@ -1,0 +1,12 @@
+# Copy to .dev.vars. Never commit filled values.
+CF_ACCOUNT_ID=
+CF_ZONE_ID=
+CF_DATABASE_ID=
+# Runner: DNS/Workers/Pages Read + D1 Edit, restricted to your Zone/Account.
+CF_API_TOKEN=
+# Worker: fine-grained PAT, only this Archive repository, Actions: Write.
+DISPATCH_TOKEN=
+# Optional runner PAT for private/collaborator repositories (Metadata/Contents Read).
+# Otherwise Actions uses its ephemeral GITHUB_TOKEN to scan the owner's public repos.
+DISCOVERY_GITHUB_TOKEN=
+ADMIN_TOKEN=

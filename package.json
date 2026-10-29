@@ -1,0 +1,43 @@
+{
+  "name": "lake-archive",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "dev:worker": "npm run build && wrangler dev",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run && vitest run --config vitest.runner.config.ts",
+    "check": "npm run typecheck && npm test && npm run build && npm run build:runner",
+    "db:local": "wrangler d1 migrations apply DB --local",
+    "db:remote": "wrangler d1 migrations apply DB --remote",
+    "deploy": "npm run check && wrangler deploy",
+    "build:runner": "esbuild runner/main.ts --bundle --platform=node --format=esm --outfile=.wrangler/runner.mjs",
+    "sync": "npm run build:runner && node .wrangler/runner.mjs"
+  },
+  "dependencies": {
+    "entities": "^9.0.0",
+    "htmlparser2": "^12.0.0",
+    "ipaddr.js": "^2.5.0",
+    "jsonc-parser": "^3.3.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "smol-toml": "^1.9.1"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.4.10",
+    "@cloudflare/workers-types": "^5.20261029.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "esbuild": "^0.28.2",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5",
+    "wrangler": "^4.155.0"
+  }
+}
