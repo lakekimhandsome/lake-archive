@@ -64,21 +64,25 @@ export async function sync(env: Env, id: string, request: Fetch = fetch): Promis
       const repository = matchingComplete || ambiguous ? match.repository : match.repository ?? existing?.repository_url ?? null;
       const evidence = matchingComplete || match.evidence.length ? JSON.stringify(match.evidence) : existing?.matching_evidence ?? '[]';
       const verified = repository && github.publicRepos.has(repository.replace('https://github.com/', '')) ? now : null;
+      const repositoryCreatedAt = repository
+        ? github.createdAt.get(repository.replace('https://github.com/', ''))
+          ?? (repository === existing?.repository_url ? existing.repository_created_at : null)
+        : null;
       // Publication is retained as history; only an explicit administrator override hides it.
       const autoPublic = Number(!!existing?.auto_public || (!!match.repository && result.status === 'online'));
       const sources = JSON.stringify([...new Set([...(existing ? JSON.parse(existing.discovery_sources) as string[] : []), ...candidate.sources])].sort());
       const archived = observed ? 0 : discovery.successfulSources === 4 ? 1 : existing?.archived ?? 0;
-      await env.DB.prepare(`INSERT INTO sites (hostname,title,description,favicon_url,og_image_url,repository_url,repository_verified_at,
+      await env.DB.prepare(`INSERT INTO sites (hostname,title,description,favicon_url,og_image_url,repository_url,repository_verified_at,repository_created_at,
         first_seen_at,last_seen_at,last_checked_at,last_online_at,current_status,discovery_sources,matching_evidence,archived,auto_public)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(hostname) DO UPDATE SET
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(hostname) DO UPDATE SET
         title=excluded.title,description=excluded.description,favicon_url=excluded.favicon_url,og_image_url=excluded.og_image_url,
-        repository_url=excluded.repository_url,repository_verified_at=excluded.repository_verified_at,
+        repository_url=excluded.repository_url,repository_verified_at=excluded.repository_verified_at,repository_created_at=excluded.repository_created_at,
         last_seen_at=excluded.last_seen_at,last_checked_at=excluded.last_checked_at,last_online_at=excluded.last_online_at,
         current_status=excluded.current_status,discovery_sources=excluded.discovery_sources,matching_evidence=excluded.matching_evidence,
         archived=excluded.archived,auto_public=excluded.auto_public`).bind(
         candidate.hostname, result.title ?? existing?.title ?? null, result.description ?? existing?.description ?? null,
         result.favicon ?? existing?.favicon_url ?? null, result.image ?? existing?.og_image_url ?? null,
-        repository, verified, existing?.first_seen_at ?? now, observed ? now : existing!.last_seen_at,
+        repository, verified, repositoryCreatedAt ?? null, existing?.first_seen_at ?? now, observed ? now : existing!.last_seen_at,
         canProbe ? now : existing?.last_checked_at ?? null, canProbe && result.status === 'online' ? now : existing?.last_online_at ?? null,
         result.status, sources, evidence, archived, autoPublic).run();
       if (canProbe) checked++;

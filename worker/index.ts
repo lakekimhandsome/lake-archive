@@ -44,15 +44,15 @@ async function handle(request: Request, env: Env, ctx: ExecutionContext): Promis
   if (url.pathname === '/api/sites' && request.method === 'GET') {
     const q = (url.searchParams.get('q') ?? '').trim().slice(0, 100).replace(/[\\%_]/g, '\\$&');
     const state = url.searchParams.get('status');
-    const sorts: Record<string, string> = { name: 'COALESCE(title,hostname) COLLATE NOCASE ASC', first: 'first_seen_at DESC', checked: 'last_checked_at DESC' };
-    const requestedSort = url.searchParams.get('sort') ?? 'name';
-    const sort = Object.hasOwn(sorts, requestedSort) ? sorts[requestedSort] : sorts.name;
+    const sorts: Record<string, string> = { created: 'repository_created_at DESC', name: 'COALESCE(title,hostname) COLLATE NOCASE ASC', first: 'first_seen_at DESC', checked: 'last_checked_at DESC' };
+    const requestedSort = url.searchParams.get('sort') ?? 'created';
+    const sort = Object.hasOwn(sorts, requestedSort) ? sorts[requestedSort] : sorts.created;
     const offset = Math.floor(Math.max(0, Math.min(100000, Number(url.searchParams.get('offset')) || 0)));
     const where = `${publicWhere} AND (hostname LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\')
       ${state === 'online' ? "AND current_status='online'" : state === 'offline' ? "AND current_status!='online'" : ''}`;
     const pattern = `%${q}%`;
     const [rows, counts, filtered, latest] = await env.DB.batch([
-      env.DB.prepare(`SELECT hostname,title,description,favicon_url,repository_url,repository_verified_at,first_seen_at,last_seen_at,
+      env.DB.prepare(`SELECT hostname,title,description,favicon_url,repository_url,repository_verified_at,repository_created_at,first_seen_at,last_seen_at,
         last_checked_at,last_online_at,current_status,archived FROM sites WHERE ${where} ORDER BY ${sort},hostname LIMIT 60 OFFSET ?`).bind(pattern, pattern, offset),
       env.DB.prepare(`SELECT COUNT(*) AS total,COALESCE(SUM(current_status='online'),0) AS online FROM sites WHERE ${publicWhere}`),
       env.DB.prepare(`SELECT COUNT(*) AS count FROM sites WHERE ${where}`).bind(pattern, pattern),

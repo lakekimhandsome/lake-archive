@@ -4,7 +4,7 @@ import './style.css';
 
 interface Site {
   hostname: string; title: string | null; description: string | null; favicon_url: string | null;
-  repository_url: string | null; first_seen_at: string; last_checked_at: string | null;
+  repository_url: string | null; repository_created_at: string | null; first_seen_at: string; last_checked_at: string | null;
   current_status: 'online' | 'offline' | 'unknown' | 'blocked'; archived: number;
 }
 interface Archive {
@@ -26,7 +26,7 @@ function Icon({ url, title }: { url: string | null; title: string }) {
 function App() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
-  const [sort, setSort] = useState('name');
+  const [sort, setSort] = useState('created');
   const [page, setPage] = useState(0);
   const [data, setData] = useState<Archive | null>(null);
   const [error, setError] = useState(false);
@@ -85,7 +85,7 @@ function App() {
             <button key={value} aria-pressed={filter === value} onClick={() => update(setFilter, value)}>{label}</button>)}
         </div>
         <label className="sort"><span className="sr-only">정렬 기준</span><select value={sort} onChange={e => update(setSort, e.target.value)}>
-          <option value="name">이름순</option><option value="first">최초 발견순</option><option value="checked">최근 확인순</option>
+          <option value="created">레포 생성일순</option><option value="first">최근 추가순</option><option value="name">이름순</option><option value="checked">최근 확인순</option>
         </select></label>
       </div>
       <div aria-live="polite" className="result-line">{loading ? '사이트를 불러오는 중…' : `${data?.filtered ?? 0}개의 사이트`}</div>
@@ -96,7 +96,7 @@ function App() {
         <h3><a href={`https://${site.hostname}/`} target="_blank" rel="noopener noreferrer">{site.title || site.hostname}</a></h3>
         <p className="hostname">{site.hostname}</p>
         <p className="description">{site.description || '저장된 설명이 없습니다.'}</p>
-        <div className="card-meta"><span>최초 발견 <time dateTime={site.first_seen_at}>{date(site.first_seen_at)}</time></span>{!!site.archived && <span className="archived-tag">이전 기록</span>}</div>
+        <div className="card-meta"><span>{site.repository_created_at ? <>레포 생성 <time dateTime={site.repository_created_at}>{date(site.repository_created_at)}</time></> : '레포 생성일 미확인'}</span>{!!site.archived && <span className="archived-tag">이전 기록</span>}</div>
         <div className="card-footer"><a className="visit-link" href={`https://${site.hostname}/`} target="_blank" rel="noopener noreferrer">사이트 방문 <span aria-hidden="true">↗</span><span className="sr-only"> (새 탭)</span></a>
           {site.repository_url && <a className="github-link" href={site.repository_url} target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span><span className="sr-only"> (새 탭)</span></a>}</div>
       </article>)}</div>}

@@ -31,7 +31,7 @@ const request: Fetch = async (input, init) => {
   if (url.hostname === 'api.github.com') {
     if (githubFailure) return json({}, 403);
     if (url.pathname === '/user/repos') return json([
-      { full_name: 'lake/public', private: repoPrivate, homepage: 'https://example.lakekim.com/', default_branch: 'main' },
+      { full_name: 'lake/public', private: repoPrivate, homepage: 'https://example.lakekim.com/', default_branch: 'main', created_at: '2026-09-01T00:00:00Z' },
       { full_name: 'lake/secret-internal-project', private: true, homepage: 'https://internal.lakekim.com', default_branch: 'main' },
     ]);
     if (url.pathname.endsWith('/contents/')) return json([]);
@@ -311,6 +311,31 @@ describe('D1 sync and API', () => {
     expect(ids.filter(Boolean)).toHaveLength(1);
     await sync(testEnv, ids.find(Boolean)!, request);
     expect(await acquireSync(testEnv)).toBeNull();
+  });
+  it('defaults to repository creation dates, puts missing dates last, and retains other sorting', async () => {
+    for (const [host, title, discovered, created] of [
+      ['old.lakekim.com', 'Alpha', '2026-10-29T00:00:00Z', '2025-01-01T00:00:00Z'],
+      ['new.lakekim.com', 'Zulu', '2026-10-01T00:00:00Z', '2026-01-01T00:00:00Z'],
+      ['unknown.lakekim.com', 'Unknown', '2026-10-30T00:00:00Z', null],
+    ]) {
+      await env.DB.prepare('INSERT INTO sites (hostname,title,first_seen_at,last_seen_at,repository_created_at,visibility) VALUES (?,?,?,?,?,?)')
+        .bind(host, title, discovered, discovered, created, 'public').run();
+    }
+    for (const path of ['/api/sites', '/api/sites?sort=created', '/api/sites?sort=constructor']) {
+      const result = await (await api(path)).json<{ sites: Site[] }>();
+      expect(result.sites.map(site => site.hostname)).toEqual(['new.lakekim.com', 'old.lakekim.com', 'unknown.lakekim.com']);
+    }
+    const named = await (await api('/api/sites?sort=name')).json<{ sites: Site[] }>();
+    expect(named.sites.map(site => site.hostname)).toEqual(['old.lakekim.com', 'unknown.lakekim.com', 'new.lakekim.com']);
+    const first = await (await api('/api/sites?sort=first')).json<{ sites: Site[] }>();
+    expect(first.sites.map(site => site.hostname)).toEqual(['unknown.lakekim.com', 'old.lakekim.com', 'new.lakekim.com']);
+  });
+  it('stores repository creation dates and preserves them on a GitHub outage', async () => {
+    await run();
+    expect((await getSite())!.repository_created_at).toBe('2026-09-01T00:00:00.000Z');
+    githubFailure = true;
+    await run();
+    expect((await getSite())!.repository_created_at).toBe('2026-09-01T00:00:00.000Z');
   });
   it('escapes search wildcard/SQL characters and filters statuses', async () => {
     await run();

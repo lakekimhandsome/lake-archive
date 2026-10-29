@@ -4,7 +4,7 @@ import { ApiError, apiJson } from './http';
 import { hostname, siteURL } from './safety';
 import type { Candidate, Env, Evidence, Fetch } from './types';
 
-interface Repo { full_name: string; private: boolean; homepage: string | null; default_branch: string }
+interface Repo { full_name: string; private: boolean; homepage: string | null; default_branch: string; created_at?: string }
 interface File { type: string; name: string }
 interface Content { content: string; encoding: string; size: number }
 const configFiles = new Set(['CNAME', 'wrangler.toml', 'wrangler.json', 'wrangler.jsonc', 'vercel.json']);
@@ -42,6 +42,7 @@ export async function repositories(env: Env, request: Fetch = fetch) {
   const repos: Repo[] = [];
   const matches = new Map<string, Evidence[]>();
   const publicRepos = new Set<string>();
+  const createdAt = new Map<string, string>();
   const errors: string[] = [];
   function add(host: string, repository: string, kind: Evidence['kind']) {
     const evidence = matches.get(host) ?? [];
@@ -58,13 +59,16 @@ export async function repositories(env: Env, request: Fetch = fetch) {
       if (batch.length < 100) break;
       if (page === 100) throw new Error('repository-page-limit');
     }
-  } catch { return { matches, publicRepos, complete: false, errors: ['github:list'] }; }
+  } catch { return { matches, publicRepos, createdAt, complete: false, errors: ['github:list'] }; }
   for (const repo of repos) {
     if (repo.private) continue;
     const fullName = repo.full_name.toLowerCase();
     if (!/^[a-z0-9_.-]+\/[a-z0-9_.-]+$/.test(fullName)) continue;
     // The authenticated list explicitly reports visibility; private repos never supply evidence.
     publicRepos.add(fullName);
+    if (repo.created_at && Number.isFinite(Date.parse(repo.created_at))) {
+      createdAt.set(fullName, new Date(repo.created_at).toISOString());
+    }
     const home = repo.homepage && siteURL(repo.homepage);
     if (home) add(home.hostname, fullName, 'homepage');
   }
@@ -98,7 +102,7 @@ export async function repositories(env: Env, request: Fetch = fetch) {
       if ((error instanceof ApiError && [403, 429].includes(error.status)) || (error instanceof Error && error.message === 'github-budget')) break;
     }
   }
-  return { matches, publicRepos, complete: errors.length === 0, errors: [...new Set(errors)] };
+  return { matches, publicRepos, createdAt, complete: errors.length === 0, errors: [...new Set(errors)] };
 }
 
 export function matchRepository(site: Candidate, matches: Map<string, Evidence[]>, publicRepos: Set<string>) {

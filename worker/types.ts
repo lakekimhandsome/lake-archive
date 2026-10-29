@@ -30,6 +30,7 @@ export interface Site {
   og_image_url: string | null;
   repository_url: string | null;
   repository_verified_at: string | null;
+  repository_created_at: string | null;
   first_seen_at: string;
   last_seen_at: string;
   last_checked_at: string | null;
