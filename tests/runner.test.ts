@@ -1,9 +1,16 @@
+import { spawnSync } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
 import { remoteD1 } from '../runner/d1';
 import { pinnedOptions, runnerFetch } from '../runner/transport';
 import type { Fetch } from '../worker/types';
 
 describe('runner boundary', () => {
+  it('loads the built runner in Node before checking configuration', () => {
+    const result = spawnSync(process.execPath, ['.wrangler/runner.mjs'], { env: {}, encoding: 'utf8' });
+    expect(result.status).toBe(1);
+    expect(result.stderr.trim()).toBe('Archive sync failed. Check private configuration and administrator run history.');
+  });
+
   it('pins a public address while keeping the original TLS identity and HTTP Host', () => {
     const options = pinnedOptions(new URL('https://example.lakekim.com/path?q=1'), ['93.184.216.34']);
     expect(options.hostname).toBe('93.184.216.34');

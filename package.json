@@ -8,12 +8,12 @@
     "dev:worker": "npm run build && wrangler dev",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run && vitest run --config vitest.runner.config.ts",
-    "check": "npm run typecheck && npm test && npm run build && npm run build:runner",
+    "test": "vitest run && npm run build:runner && vitest run --config vitest.runner.config.ts",
+    "check": "npm run typecheck && npm test && npm run build",
     "db:local": "wrangler d1 migrations apply DB --local",
     "db:remote": "wrangler d1 migrations apply DB --remote",
     "deploy": "npm run check && wrangler deploy",
-    "build:runner": "esbuild runner/main.ts --bundle --platform=node --format=esm --outfile=.wrangler/runner.mjs",
+    "build:runner": "esbuild runner/main.ts --bundle --packages=external --platform=node --format=esm --outfile=.wrangler/runner.mjs",
     "sync": "npm run build:runner && node .wrangler/runner.mjs"
   },
   "dependencies": {
