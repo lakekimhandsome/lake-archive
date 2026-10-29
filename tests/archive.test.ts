@@ -121,6 +121,16 @@ describe('discovery and matching', () => {
     expect(found.sites.get('example.lakekim.com')!.sources.size).toBe(4);
     expect(found.sites.get('pages.lakekim.com')!.deployments.has('lake/public')).toBe(true);
   });
+  it('recognizes managed Worker placeholder DNS only with a confirmed Custom Domain', async () => {
+    const managed: Fetch = async input => {
+      const path = new URL(String(input)).pathname;
+      const result = path.endsWith('dns_records') ? [{ name: 'archive.lakekim.com', type: 'AAAA', content: '100::', proxied: true, meta: { read_only: true, origin_worker_id: 'worker-id' } }] : path.endsWith('/domains') ? [{ hostname: 'archive.lakekim.com' }] : [];
+      return json({ success: true, result, result_info: { total_pages: 1 } });
+    };
+    expect((await discover(testEnv, managed)).sites.get('archive.lakekim.com')!.unsafe).toBe(false);
+    const unconfirmed: Fetch = (input, init) => String(input).includes('/workers/domains') ? Promise.resolve(json({}, 403)) : managed(input, init);
+    expect((await discover(testEnv, unconfirmed)).sites.get('archive.lakekim.com')!.unsafe).toBe(true);
+  });
   it('uses only explicit config fields and exact CNAME, including JSONC and TOML', () => {
     expect(configHosts('CNAME', 'example.lakekim.com\n')).toEqual(['example.lakekim.com']);
     expect(configHosts('wrangler.jsonc', '// comment\n{"routes":[{"pattern":"example.lakekim.com/*"}],"name":"ignored.lakekim.com"}')).toEqual(['example.lakekim.com']);

@@ -195,7 +195,7 @@ curl --fail-with-body -X PATCH https://archive.lakekim.com/api/admin/sites \
 ## 보안·기술적 한계
 
 - 사이트 URL은 `lakekim.com` 또는 정확한 하위 도메인의 HTTPS 443만 허용합니다. IP literal·인증정보·외부 도메인·HTTP·비표준 port를 거부합니다. 리다이렉트는 최대 4회, 매 단계 동일한 검사를 적용합니다.
-- DNS 관리 API의 A/AAAA 원본이 private/special IP면 차단합니다. 각 요청 전에 DoH A/AAAA와 runner의 DNS 답을 검사합니다. 하나라도 private·loopback·link-local·특수 IP이면 접속하지 않습니다. Node HTTPS는 **검사한 IP에 직접 연결**하고 원래 hostname으로 SNI·인증서를 검증합니다. 검사 후 DNS 변경으로 연결 대상을 바꾸는 재바인딩을 막습니다. 원본에 Cloudflare/GitHub 인증 헤더·쿠키를 전달하지 않습니다.
+- DNS 관리 API의 A/AAAA 원본이 private/special IP면 차단합니다. Cloudflare가 생성한 read-only Worker origin placeholder는 Workers Custom Domain API에서도 같은 호스트를 확인한 경우에만 예외로 인정합니다. 이후 공개 DNS와 고정 IP 검사는 그대로 적용합니다. 각 요청 전에 DoH A/AAAA와 runner의 DNS 답을 검사합니다. 하나라도 private·loopback·link-local·특수 IP이면 접속하지 않습니다. Node HTTPS는 **검사한 IP에 직접 연결**하고 원래 hostname으로 SNI·인증서를 검증합니다. 검사 후 DNS 변경으로 연결 대상을 바꾸는 재바인딩을 막습니다. 원본에 Cloudflare/GitHub 인증 헤더·쿠키를 전달하지 않습니다.
 - HTML은 압축 해제 후에도 스트리밍 중 512 KiB로 제한합니다. 관리 API 응답은 4 MiB입니다. 메타데이터는 텍스트로 렌더링하고 원격 script를 실행하지 않습니다. 외부 favicon/OG 이미지는 저장하지 않으며 favicon 실패 시 이니셜을 표시합니다.
 - WAF·로그인·VPN·외부 SSO·HTTP 전용 사이트는 offline/blocked로 표시될 수 있습니다. 2xx가 앱 전체 정상 동작을 보장하지 않습니다. JS 실행 후 생성되는 title/OG는 수집하지 않습니다.
 - Cloudflare Tunnel로 인터넷에 공개한 서비스는 공개 DNS만으로 내부 서비스인지 판별할 수 없으므로 공개 승인 정책을 유지해야 합니다. 이 시스템에 private 네트워크 접근 권한을 추가하지 마세요.

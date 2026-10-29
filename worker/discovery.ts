@@ -16,12 +16,14 @@ export async function cfList<T>(path: string, env: Env, request: Fetch = fetch):
   }
   throw new Error('cloudflare-page-limit');
 }
-interface DNSRecord { name: string; type: string; content: string }
+interface DNSRecord { name: string; type: string; content: string; proxied?: boolean; meta?: { origin_worker_id?: string; read_only?: boolean } }
 interface PagesProject { name: string; domains?: string[]; source?: { type: string; config: { owner: string; repo_name: string } } }
 
 export async function discover(env: Env, request: Fetch = fetch) {
   const sites = new Map<string, Candidate>();
   const errors: string[] = [];
+  const managedWorkerOrigins = new Set<string>();
+  const confirmedWorkerDomains = new Set<string>();
   let successfulSources = 0;
   function add(value: string, source: string, repo?: string, unsafe = false) {
     const host = hostname(value);
@@ -38,8 +40,11 @@ export async function discover(env: Env, request: Fetch = fetch) {
   await source('dns', async () => {
     const records = await cfList<DNSRecord>(`/zones/${env.CF_ZONE_ID}/dns_records`, env, request);
     for (const record of records) {
-      if (['A', 'AAAA', 'CNAME'].includes(record.type)) add(record.name, `dns:${record.type}`,
-        undefined, record.type !== 'CNAME' && !publicIP(record.content));
+      if (!['A', 'AAAA', 'CNAME'].includes(record.type)) continue;
+      const managedWorker = record.proxied === true && record.meta?.read_only === true && !!record.meta.origin_worker_id;
+      const host = hostname(record.name);
+      if (managedWorker && host) managedWorkerOrigins.add(host);
+      add(record.name, `dns:${record.type}`, undefined, !managedWorker && record.type !== 'CNAME' && !publicIP(record.content));
     }
   });
   await source('worker-routes', async () => {
@@ -52,7 +57,11 @@ export async function discover(env: Env, request: Fetch = fetch) {
   });
   await source('worker-domains', async () => {
     const domains = await cfList<{ hostname: string }>(`/accounts/${env.CF_ACCOUNT_ID}/workers/domains`, env, request);
-    domains.forEach(domain => add(domain.hostname, 'worker-domain'));
+    domains.forEach(domain => {
+      const host = hostname(domain.hostname);
+      if (host) confirmedWorkerDomains.add(host);
+      add(domain.hostname, 'worker-domain');
+    });
   });
   await source('pages', async () => {
     const projects = await cfList<PagesProject>(`/accounts/${env.CF_ACCOUNT_ID}/pages/projects`, env, request);
@@ -61,5 +70,7 @@ export async function discover(env: Env, request: Fetch = fetch) {
       for (const domain of project.domains ?? []) add(domain, 'pages-domain', sourceRepo);
     }
   });
+  // Cloudflare-managed Worker DNS uses a placeholder origin; trust only confirmed Custom Domains.
+  for (const host of managedWorkerOrigins) if (!confirmedWorkerDomains.has(host)) sites.get(host)!.unsafe = true;
   return { sites, errors, successfulSources };
 }
