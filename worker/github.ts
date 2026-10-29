@@ -79,12 +79,19 @@ export async function repositories(env: Env, request: Fetch = fetch) {
         if (error instanceof ApiError && error.status === 404) continue;
         throw error;
       }
-      for (const file of root) {
-        if (file.type !== 'file' || !configFiles.has(file.name)) continue;
-        const data = await apiJson<Content>(`https://api.github.com/repos/${fullName}/contents/${encodeURIComponent(file.name)}`, headers, request);
+      const paths = root.filter(file => file.type === 'file' && configFiles.has(file.name)).map(file => file.name);
+      if (root.some(file => file.type === 'dir' && file.name === 'docs')) paths.push('docs/CNAME');
+      for (const path of paths) {
+        let data: Content;
+        try { data = await apiJson<Content>(`https://api.github.com/repos/${fullName}/contents/${path}`, headers, request); }
+        catch (error) {
+          if (path === 'docs/CNAME' && error instanceof ApiError && error.status === 404) continue;
+          throw error;
+        }
         if (data.encoding !== 'base64' || data.size > 64000) continue;
         const bytes = Uint8Array.from(atob(data.content.replace(/\s/g, '')), c => c.charCodeAt(0));
-        for (const host of configHosts(file.name, new TextDecoder().decode(bytes))) add(host, fullName, file.name === 'CNAME' ? 'CNAME' : 'config');
+        const name = path.split('/').pop()!;
+        for (const host of configHosts(name, new TextDecoder().decode(bytes))) add(host, fullName, name === 'CNAME' ? 'CNAME' : 'config');
       }
     } catch (error) {
       errors.push(error instanceof ApiError ? `github:contents-${error.status}` : 'github:invalid-config');

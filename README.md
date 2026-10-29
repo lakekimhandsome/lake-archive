@@ -44,7 +44,7 @@ DNS 레코드는 **발견 근거**일 뿐 공개 승인이 아닙니다. 발견�
 1. GitHub API에서 공개임이 확인된 레포가 hostname을 명시하거나, Pages가 해당 공개 레포에 연결되어 있음.
 2. HTTPS 요청이 정상 응답(2xx)함.
 
-매칭 근거는 repository `homepage`, 루트 `CNAME`, 루트 `wrangler.toml`/`wrangler.json`/`wrangler.jsonc`의 `route`/`routes`(환경별 설정 포함), `vercel.json`의 `alias`, Pages GitHub 연결입니다. 레포 이름의 유사성은 사용하지 않습니다. 서로 다른 레포가 일치하면 repository는 null입니다. 근거마다 `high` confidence를 기록합니다.
+매칭 근거는 repository `homepage`, 루트 또는 `docs/CNAME`, 루트 `wrangler.toml`/`wrangler.json`/`wrangler.jsonc`의 `route`/`routes`(환경별 설정 포함), `vercel.json`의 `alias`, Pages GitHub 연결입니다. 레포 이름의 유사성은 사용하지 않습니다. 서로 다른 레포가 일치하면 repository는 null입니다. 근거마다 `high` confidence를 기록합니다.
 
 한 번 공개된 사이트의 승인은 역사로 유지합니다. 오프라인·DNS 삭제·배포 설정 삭제 후에도 목록에서 찾을 수 있습니다. **공개 도메인을 내부 서비스로 전환하기 전에 관리자 API에서 `visibility=private`으로 바꾸세요.** 재탐색은 관리자 결정을 덮어쓰지 않습니다. 공개 이력이 없는 내부 서비스는 비공개입니다.
 

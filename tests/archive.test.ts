@@ -181,6 +181,20 @@ describe('discovery and matching', () => {
     expect(result.matches.get('example.lakekim.com')?.[0].kind).toBe('CNAME');
     expect(() => configHosts('wrangler.json', '{"route":"example.lakekim.com"')).toThrow('invalid-deployment-config');
   });
+  it('discovers docs/CNAME in public repositories and tolerates docs without CNAME', async () => {
+    const github: Fetch = async input => {
+      const path = new URL(String(input)).pathname;
+      if (path === '/user/repos') return json(['apple', 'other'].map(name => ({ full_name: `lake/${name}`, private: false, homepage: null })));
+      if (path.endsWith('/contents/')) return json([{ name: 'docs', type: 'dir' }]);
+      if (path === '/repos/lake/apple/contents/docs/CNAME') return json({ content: btoa('apple.lakekim.com\n'), encoding: 'base64', size: 18 });
+      if (path === '/repos/lake/other/contents/docs/CNAME') return json({}, 404);
+      throw new Error('unexpected GitHub request');
+    };
+    const result = await repositories(testEnv, github);
+    expect(result.complete).toBe(true);
+    expect(matchRepository(candidate('apple.lakekim.com'), result.matches, result.publicRepos).repository).toBe('https://github.com/lake/apple');
+    expect(result.matches.get('apple.lakekim.com')?.[0].kind).toBe('CNAME');
+  });
   it('collects decoded metadata and discards external image links', async () => {
     const result = await metadata('<title>A &amp; B</title><meta property="og:description" content="A &amp; B"><link rel="shortcut icon" href="/icon.png"><meta property="og:image" content="https://evil.test/image">', 'https://example.lakekim.com');
     expect(result.title).toBe('A & B');
