@@ -287,6 +287,25 @@ describe('D1 sync and API', () => {
     expect((await (await api()).json<{ sites: Site[] }>()).sites).toHaveLength(0);
     expect((await getSite())!.visibility).toBe('private');
   });
+  it('excludes private sites from searches, pagination, counts and metadata after rediscovery', async () => {
+    records.push({ ...records[0], name: 'visible.lakekim.com' });
+    await run();
+    await api('/api/admin/sites', { method: 'PATCH', headers: { Authorization: `Bearer ${testEnv.ADMIN_TOKEN}` }, body: JSON.stringify({ hostname: 'example.lakekim.com', visibility: 'private' }) });
+    await run();
+    await env.DB.prepare('UPDATE sites SET title=?,description=?,favicon_url=?,repository_url=? WHERE hostname=?')
+      .bind('Hidden title', 'Hidden description', 'https://example.lakekim.com/secret.ico', 'https://github.com/lake/hidden', 'example.lakekim.com').run();
+    await env.DB.prepare('UPDATE sites SET title=? WHERE hostname=?').bind('Visible', 'visible.lakekim.com').run();
+    for (const query of ['', 'q=example', 'q=Hidden', 'sort=name', 'sort=first', 'sort=checked', 'offset=60', 'status=online', 'status=offline']) {
+      const response = await api(`/api/sites?${query}`);
+      expect(response.headers.get('Cache-Control')).toBe('no-store');
+      const text = await response.text();
+      for (const secret of ['example.lakekim.com', 'Hidden title', 'Hidden description', 'lake/hidden']) expect(text).not.toContain(secret);
+      const result = JSON.parse(text);
+      expect(result.counts).toEqual({ total: 1, online: 1 });
+      expect(result.filtered).toBe(query.startsWith('q=') || query === 'status=offline' ? 0 : 1);
+    }
+    for (const path of ['/api/admin/sites', '/api/admin/runs']) expect((await api(path)).status).toBe(401);
+  });
   it('discovers itself normally and only fetches its root, with no synchronization recursion', async () => {
     records = [{ name: 'archive.lakekim.com', type: 'A', content: '93.184.216.34' }];
     await run(); await run();
