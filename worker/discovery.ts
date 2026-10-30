@@ -17,7 +17,7 @@ export async function cfList<T>(path: string, env: Env, request: Fetch = fetch):
   }
   throw new Error('cloudflare-page-limit');
 }
-interface DNSRecord { name: string; type: string; content: string; proxied?: boolean; meta?: { origin_worker_id?: string; read_only?: boolean } }
+interface DNSRecord { name: string; type: string; content: string; created_on?: string; proxied?: boolean; meta?: { origin_worker_id?: string; read_only?: boolean } }
 interface PagesProject { name: string; domains?: string[]; source?: { type: string; config: { owner: string; repo_name: string } } }
 
 export async function discover(env: Env, request: Fetch = fetch) {
@@ -29,11 +29,12 @@ export async function discover(env: Env, request: Fetch = fetch) {
   function add(value: string, source: string, repo?: string, unsafe = false) {
     const host = hostname(value);
     if (!host) return;
-    const site = sites.get(host) ?? { hostname: host, sources: new Set<string>(), deployments: new Set<string>(), unsafe: false };
+    const site: Candidate = sites.get(host) ?? { hostname: host, sources: new Set<string>(), deployments: new Set<string>(), unsafe: false };
     site.sources.add(source);
     if (repo) site.deployments.add(repo.toLowerCase());
     site.unsafe ||= unsafe;
     sites.set(host, site);
+    return site;
   }
   async function source(name: string, run: () => Promise<void>) {
     try { await run(); successfulSources++; } catch { errors.push(`discovery:${name}`); }
@@ -45,7 +46,11 @@ export async function discover(env: Env, request: Fetch = fetch) {
       const managedWorker = record.proxied === true && record.meta?.read_only === true && !!record.meta.origin_worker_id;
       const host = hostname(record.name);
       if (managedWorker && host) managedWorkerOrigins.add(host);
-      add(record.name, `dns:${record.type}`, undefined, !managedWorker && record.type !== 'CNAME' && !publicIP(record.content));
+      const site = add(record.name, `dns:${record.type}`, undefined, !managedWorker && record.type !== 'CNAME' && !publicIP(record.content));
+      if (site && record.created_on && Number.isFinite(Date.parse(record.created_on))) {
+        const created = new Date(record.created_on).toISOString();
+        if (!site.dnsCreatedAt || created < site.dnsCreatedAt) site.dnsCreatedAt = created;
+      }
     }
   });
   await source('worker-routes', async () => {

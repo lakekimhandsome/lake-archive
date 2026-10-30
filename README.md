@@ -177,7 +177,7 @@ curl --fail-with-body -X PATCH https://archive.lakekim.com/api/admin/sites \
   --data '{"hostname":"<발견된 호스트>","visibility":"private"}'
 ```
 
-`visibility`는 `auto`(기본), `public`(명시적 승인), `private`(항상 숨김)입니다. 관리자 공개 승인도 private 레포 링크를 공개하지 않습니다. Token은 고정 길이 SHA-256 digest로 비교합니다. 공개 API는 60개씩 검색·정렬·필터·페이지 이동을 지원합니다. offline 필터에는 unknown/blocked도 포함하고 배지는 각각 구분합니다.
+`visibility`는 `auto`(기본), `public`(명시적 승인), `private`(항상 숨김)입니다. 관리자 공개 승인도 private 레포 링크를 공개하지 않습니다. Token은 고정 길이 SHA-256 digest로 비교합니다. 공개 API는 60개씩 검색·정렬·필터·페이지 이동을 지원합니다. 기본 생성일순은 저장소 생성일을 우선하고, 없으면 DNS 레코드 생성일을 사용해 최신순으로 함께 정렬합니다. 둘 다 없으면 마지막에 표시합니다. DNS 생성일은 현재 A·AAAA·CNAME 레코드 중 가장 이른 `created_on`이며, 실제 서비스 개시일과 다를 수 있습니다. offline 필터에는 unknown/blocked도 포함하고 배지는 각각 구분합니다.
 
 ## 데이터 보존·오류 처리
 

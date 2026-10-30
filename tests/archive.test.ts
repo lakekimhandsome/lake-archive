@@ -13,7 +13,7 @@ import type { Candidate, Env, Fetch, Site } from '../worker/types';
 const testEnv: Env = { ...env, CF_ACCOUNT_ID: 'test-account', CF_ZONE_ID: 'test-zone', CF_API_TOKEN: 'secret-cf', GITHUB_TOKEN: 'secret-github', ADMIN_TOKEN: 'x'.repeat(40), DISPATCH_TOKEN: 'dispatch-secret', SYNC_REPOSITORY: 'test/archive', SYNC_REF: 'main' };
 const candidate = (host = 'example.lakekim.com'): Candidate => ({ hostname: host, sources: new Set(['dns:A']), deployments: new Set(), unsafe: false });
 const json = (value: unknown, status = 200) => Response.json(value, { status });
-let records: { name: string; type: string; content: string }[];
+let records: { name: string; type: string; content: string; created_on?: string }[];
 let repoPrivate: boolean;
 let githubFailure: boolean;
 let pagesFailure: boolean;
@@ -328,23 +328,41 @@ describe('D1 sync and API', () => {
     await sync(testEnv, ids.find(Boolean)!, request);
     expect(await acquireSync(testEnv)).toBeNull();
   });
-  it('defaults to repository creation dates, puts missing dates last, and retains other sorting', async () => {
-    for (const [host, title, discovered, created] of [
-      ['old.lakekim.com', 'Alpha', '2026-10-29T00:00:00Z', '2025-01-01T00:00:00Z'],
-      ['new.lakekim.com', 'Zulu', '2026-10-01T00:00:00Z', '2026-01-01T00:00:00Z'],
-      ['unknown.lakekim.com', 'Unknown', '2026-10-30T00:00:00Z', null],
+  it('sorts repository and DNS creation dates together, preferring repository dates and putting missing dates last', async () => {
+    for (const [host, title, discovered, created, dns] of [
+      ['old.lakekim.com', 'Alpha', '2026-10-29T00:00:00Z', '2025-01-01T00:00:00Z', '2026-10-31T00:00:00Z'],
+      ['new.lakekim.com', 'Zulu', '2026-10-01T00:00:00Z', '2026-01-01T00:00:00Z', null],
+      ['dns.lakekim.com', 'DNS', '2026-10-02T00:00:00Z', null, '2025-06-01T00:00:00Z'],
+      ['unknown.lakekim.com', 'Unknown', '2026-10-30T00:00:00Z', null, null],
     ]) {
-      await env.DB.prepare('INSERT INTO sites (hostname,title,first_seen_at,last_seen_at,repository_created_at,visibility) VALUES (?,?,?,?,?,?)')
-        .bind(host, title, discovered, discovered, created, 'public').run();
+      await env.DB.prepare('INSERT INTO sites (hostname,title,first_seen_at,last_seen_at,repository_created_at,dns_created_at,visibility) VALUES (?,?,?,?,?,?,?)')
+        .bind(host, title, discovered, discovered, created, dns, 'public').run();
     }
     for (const path of ['/api/sites', '/api/sites?sort=created', '/api/sites?sort=constructor']) {
       const result = await (await api(path)).json<{ sites: Site[] }>();
-      expect(result.sites.map(site => site.hostname)).toEqual(['new.lakekim.com', 'old.lakekim.com', 'unknown.lakekim.com']);
+      expect(result.sites.map(site => site.hostname)).toEqual(['new.lakekim.com', 'dns.lakekim.com', 'old.lakekim.com', 'unknown.lakekim.com']);
+      expect(result.sites[1].dns_created_at).toBe('2025-06-01T00:00:00Z');
     }
     const named = await (await api('/api/sites?sort=name')).json<{ sites: Site[] }>();
-    expect(named.sites.map(site => site.hostname)).toEqual(['old.lakekim.com', 'unknown.lakekim.com', 'new.lakekim.com']);
+    expect(named.sites.map(site => site.hostname)).toEqual(['old.lakekim.com', 'dns.lakekim.com', 'unknown.lakekim.com', 'new.lakekim.com']);
     const first = await (await api('/api/sites?sort=first')).json<{ sites: Site[] }>();
-    expect(first.sites.map(site => site.hostname)).toEqual(['unknown.lakekim.com', 'old.lakekim.com', 'new.lakekim.com']);
+    expect(first.sites.map(site => site.hostname)).toEqual(['unknown.lakekim.com', 'old.lakekim.com', 'dns.lakekim.com', 'new.lakekim.com']);
+  });
+  it('stores the earliest valid DNS record creation date and retains it when DNS data is missing', async () => {
+    records[0].created_on = '2026-10-30T17:20:17.076162Z';
+    records.push(
+      { ...records[0], type: 'AAAA', created_on: '2026-10-29T18:00:00+09:00' },
+      { ...records[0], type: 'AAAA', created_on: 'invalid' },
+    );
+    await run();
+    const created = '2026-10-29T09:00:00.000Z';
+    expect((await getSite())!.dns_created_at).toBe(created);
+    records = [{ ...records[0], created_on: undefined }];
+    await run();
+    expect((await getSite())!.dns_created_at).toBe(created);
+    records = [];
+    await run();
+    expect((await getSite())!.dns_created_at).toBe(created);
   });
   it('stores repository creation dates and preserves them on a GitHub outage', async () => {
     await run();

@@ -21,6 +21,7 @@ export interface Candidate {
   sources: Set<string>;
   deployments: Set<string>;
   unsafe: boolean;
+  dnsCreatedAt?: string;
 }
 export interface Site {
   hostname: string;
@@ -31,6 +32,7 @@ export interface Site {
   repository_url: string | null;
   repository_verified_at: string | null;
   repository_created_at: string | null;
+  dns_created_at: string | null;
   first_seen_at: string;
   last_seen_at: string;
   last_checked_at: string | null;

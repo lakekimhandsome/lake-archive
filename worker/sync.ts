@@ -30,9 +30,9 @@ export async function sync(env: Env, id: string, request: Fetch = fetch): Promis
       await env.DB.batch(discoveries.slice(offset, offset + 100).map(site => {
         const existing = previous.get(site.hostname);
         const sources = JSON.stringify([...new Set([...(existing ? JSON.parse(existing.discovery_sources) as string[] : []), ...site.sources])].sort());
-        return env.DB.prepare(`INSERT INTO sites (hostname,first_seen_at,last_seen_at,discovery_sources) VALUES (?,?,?,?)
-          ON CONFLICT(hostname) DO UPDATE SET last_seen_at=excluded.last_seen_at,discovery_sources=excluded.discovery_sources,archived=0`)
-          .bind(site.hostname, started, started, sources);
+        return env.DB.prepare(`INSERT INTO sites (hostname,first_seen_at,last_seen_at,discovery_sources,dns_created_at) VALUES (?,?,?,?,?)
+          ON CONFLICT(hostname) DO UPDATE SET last_seen_at=excluded.last_seen_at,discovery_sources=excluded.discovery_sources,dns_created_at=COALESCE(excluded.dns_created_at,sites.dns_created_at),archived=0`)
+          .bind(site.hostname, started, started, sources, site.dnsCreatedAt ?? null);
       }));
     }
     let githubCalls = 0;
