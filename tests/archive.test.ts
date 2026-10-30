@@ -227,6 +227,21 @@ describe('D1 sync and API', () => {
     await run();
     expect(await getSite('new.lakekim.com')).not.toBeNull();
   });
+  it.each([true, false])('publishes a DNS-only host regardless of availability (online=%s)', async (available) => {
+    records = [{ name: 'clock-simulator.lakekim.com', type: 'CNAME', content: 'example.github.io' }];
+    githubFailure = true;
+    online = available;
+    await run();
+    const site = (await getSite('clock-simulator.lakekim.com'))!;
+    expect(site.auto_public).toBe(1);
+    expect(site.repository_url).toBeNull();
+    expect(site.current_status).toBe(available ? 'online' : 'offline');
+    expect((await (await api()).json<{ sites: Site[] }>()).sites.map(site => site.hostname)).toEqual(['clock-simulator.lakekim.com']);
+    records = [];
+    await run();
+    expect((await getSite('clock-simulator.lakekim.com'))!.auto_public).toBe(1);
+    expect((await (await api()).json<{ sites: Site[] }>()).sites).toHaveLength(1);
+  });
   it('preserves history and matching on GitHub outage; hides unverified repository URLs', async () => {
     await run();
     const first = (await getSite())!;
@@ -240,12 +255,13 @@ describe('D1 sync and API', () => {
     expect((await (await api()).json<{ sites: Site[] }>()).sites[0].repository_url).toBeNull();
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM sync_runs WHERE status='partial'").first()).toEqual({ n: 1 });
   });
-  it('does not expose internal hosts, private repository evidence, admin fields, or raw errors', async () => {
+  it('publishes discovered hosts without exposing private repository evidence, admin fields, or raw errors', async () => {
     records.push({ name: 'internal.lakekim.com', type: 'A', content: '93.184.216.34' });
     await run();
     const text = await (await api()).text();
     expect(text).toContain('example.lakekim.com');
-    for (const secret of ['internal.lakekim.com','secret-internal-project','matching_evidence','discovery_sources','visibility','secret-cf','secret-github']) expect(text).not.toContain(secret);
+    expect(text).toContain('internal.lakekim.com');
+    for (const secret of ['secret-internal-project','matching_evidence','discovery_sources','visibility','secret-cf','secret-github']) expect(text).not.toContain(secret);
     expect((await api('/api/admin/sites')).status).toBe(401);
     expect((await api('/api/admin/sync', { method: 'POST' })).status).toBe(401);
     expect((await api('/api/sync', { method: 'POST' })).status).toBe(404);

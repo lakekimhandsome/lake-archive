@@ -69,7 +69,7 @@ export async function sync(env: Env, id: string, request: Fetch = fetch): Promis
           ?? (repository === existing?.repository_url ? existing.repository_created_at : null)
         : null;
       // Publication is retained as history; only an explicit administrator override hides it.
-      const autoPublic = Number(!!existing?.auto_public || (!!match.repository && result.status === 'online'));
+      const autoPublic = Number(!!existing?.auto_public || observed);
       const sources = JSON.stringify([...new Set([...(existing ? JSON.parse(existing.discovery_sources) as string[] : []), ...candidate.sources])].sort());
       const archived = observed ? 0 : discovery.successfulSources === 4 ? 1 : existing?.archived ?? 0;
       await env.DB.prepare(`INSERT INTO sites (hostname,title,description,favicon_url,og_image_url,repository_url,repository_verified_at,repository_created_at,

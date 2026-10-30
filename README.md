@@ -39,18 +39,15 @@ tests/                  실제 workerd/D1 + Node runner 경계 테스트
 
 ## 공개 정책
 
-DNS 레코드는 **발견 근거**일 뿐 공개 승인이 아닙니다. 발견한 모든 호스트는 D1에 보관합니다. 자동 공개의 최초 조건은 다음 둘을 모두 만족하는 것입니다.
-
-1. GitHub API에서 공개임이 확인된 레포가 hostname을 명시하거나, Pages가 해당 공개 레포에 연결되어 있음.
-2. HTTPS 요청이 정상 응답(2xx)함.
+`lakekim.com`과 하위 도메인은 DNS·Workers·Pages에서 발견되면 GitHub 저장소 연결이나 HTTPS 응답 상태와 관계없이 자동 공개됩니다. 연결되지 않은 저장소 링크는 표시하지 않고, 접속 상태는 별도로 표시합니다. 관리자에게 `visibility=private`으로 지정된 사이트는 항상 숨깁니다.
 
 매칭 근거는 repository `homepage`, 루트 또는 `docs/CNAME`, 루트 `wrangler.toml`/`wrangler.json`/`wrangler.jsonc`의 `route`/`routes`(환경별 설정 포함), `vercel.json`의 `alias`, Pages GitHub 연결입니다. 레포 이름의 유사성은 사용하지 않습니다. 서로 다른 레포가 일치하면 repository는 null입니다. 근거마다 `high` confidence를 기록합니다.
 
-한 번 공개된 사이트의 승인은 역사로 유지합니다. 오프라인·DNS 삭제·배포 설정 삭제 후에도 목록에서 찾을 수 있습니다. **공개 도메인을 내부 서비스로 전환하기 전에 관리자 API에서 `visibility=private`으로 바꾸세요.** 재탐색은 관리자 결정을 덮어쓰지 않습니다. 공개 이력이 없는 내부 서비스는 비공개입니다.
+한 번 공개된 사이트의 승인은 역사로 유지합니다. 오프라인·DNS 삭제·배포 설정 삭제 후에도 목록에서 찾을 수 있습니다. **공개 도메인을 내부 서비스로 전환하기 전에 관리자 API에서 `visibility=private`으로 바꾸세요.** 재탐색은 관리자 결정을 덮어쓰지 않습니다. 숨겨야 하는 서비스는 관리자 API에서 명시적으로 비공개로 지정하세요.
 
 Private 레포는 매칭 근거로 사용하지 않고 소스·이름·설명·경로를 사이트 근거에 저장하지 않습니다. 공개 API는 비공개 사이트, 관리용 필드, 탐색 근거, 오류 내용을 반환하지 않습니다. GitHub 장애 시 DB의 매칭은 보존하면서 확인되지 않은 공개 레포 링크를 숨깁니다. 공개 확인 후 65분이 지나도 링크를 숨깁니다. 공개 레포를 private으로 전환하면 다음 동기화 전까지 이전 링크가 남을 수 있으므로 즉시 숨길 필요가 있으면 관리자로 사이트를 private 처리하세요.
 
-공개 레포가 없는 사이트도 자동 발견·보관됩니다. 공개 목록에 넣으려면 관리자 승인이 필요합니다. 일반적인 공개 프로젝트에서는 GitHub 홈페이지를 실제 사이트로 설정하면 Archive에 별도 등록하지 않아도 됩니다.
+공개 레포가 없는 사이트도 자동 발견·공개됩니다. GitHub 홈페이지를 실제 사이트로 설정하면 저장소 링크를 연결할 수 있습니다.
 
 ## GitHub 탐색 범위
 
@@ -198,7 +195,7 @@ curl --fail-with-body -X PATCH https://archive.lakekim.com/api/admin/sites \
 - DNS 관리 API의 A/AAAA 원본이 private/special IP면 차단합니다. Cloudflare가 생성한 read-only Worker origin placeholder는 Workers Custom Domain API에서도 같은 호스트를 확인한 경우에만 예외로 인정합니다. 이후 공개 DNS와 고정 IP 검사는 그대로 적용합니다. 각 요청 전에 DoH A/AAAA와 runner의 DNS 답을 검사합니다. 하나라도 private·loopback·link-local·특수 IP이면 접속하지 않습니다. Node HTTPS는 **검사한 IP에 직접 연결**하고 원래 hostname으로 SNI·인증서를 검증합니다. 검사 후 DNS 변경으로 연결 대상을 바꾸는 재바인딩을 막습니다. 원본에 Cloudflare/GitHub 인증 헤더·쿠키를 전달하지 않습니다.
 - HTML은 압축 해제 후에도 스트리밍 중 512 KiB로 제한합니다. 관리 API 응답은 4 MiB입니다. 메타데이터는 텍스트로 렌더링하고 원격 script를 실행하지 않습니다. 외부 favicon/OG 이미지는 저장하지 않으며 favicon 실패 시 이니셜을 표시합니다.
 - WAF·로그인·VPN·외부 SSO·HTTP 전용 사이트는 offline/blocked로 표시될 수 있습니다. 2xx가 앱 전체 정상 동작을 보장하지 않습니다. JS 실행 후 생성되는 title/OG는 수집하지 않습니다.
-- Cloudflare Tunnel로 인터넷에 공개한 서비스는 공개 DNS만으로 내부 서비스인지 판별할 수 없으므로 공개 승인 정책을 유지해야 합니다. 이 시스템에 private 네트워크 접근 권한을 추가하지 마세요.
+- Cloudflare Tunnel로 인터넷에 공개한 서비스는 공개 DNS만으로 내부 서비스인지 판별할 수 없으므로 숨겨야 하는 서비스는 `visibility=private`으로 지정하세요. 이 시스템에 private 네트워크 접근 권한을 추가하지 마세요.
 - wildcard-only 배포, 외부 DNS 위임, split DNS, 중첩 monorepo config, Token이 볼 수 없는 리소스는 완전히 열거할 수 없습니다. Workers Builds의 GitHub 연결은 수집하지 않고 public repo homepage/config로 보완합니다.
 - 대규모 계정은 GitHub/Cloudflare API rate limit·D1 무료 한도에 걸릴 수 있습니다. 계속 partial이 발생하면 조회 범위를 줄이거나 cursor/cache로 나눠야 합니다. D1 무료 한도는 계정 전체 읽기 500만 행/일, 쓰기 10만 행/일, 저장 5GB입니다. 사용량은 D1 대시보드에서 확인하세요.
 - 무료 Actions 러너 조건은 **public 소스 repo + 표준 runner**입니다. private 저장소로 바꾸거나 larger runner를 사용하면 무료 조건이 달라집니다. Actions artifact/cache에 탐색 결과를 업로드하지 않습니다.
